@@ -623,6 +623,10 @@ public class NiFiRegistryFlowMapper {
         processor.setYieldDuration(procNode.getYieldPeriod());
         processor.setScheduledState(procNode.getScheduledState() == ScheduledState.DISABLED ? org.apache.nifi.flow.ScheduledState.DISABLED
             : org.apache.nifi.flow.ScheduledState.ENABLED);
+        processor.setRetryCounts(procNode.getRetryCounts());
+        processor.setRetriedRelationships(procNode.getRetriedRelationships());
+        processor.setBackoffMechanism(procNode.getBackoffMechanism().name());
+        processor.setMaxBackoffPeriod(procNode.getMaxBackoffPeriod());
 
         return processor;
     }

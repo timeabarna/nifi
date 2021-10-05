@@ -1235,6 +1235,13 @@ public class StandardFlowSynchronizer implements FlowSynchronizer {
             procNode.setPenalizationPeriod(config.getPenaltyDuration());
             procNode.setYieldPeriod(config.getYieldDuration());
             procNode.setBulletinLevel(LogLevel.valueOf(config.getBulletinLevel()));
+            procNode.setRetryCounts(config.getRetryCounts());
+            procNode.setRetriedRelationships(config.getRetriedRelationships());
+
+            if (config.getBackoffMechanism() != null) {
+                procNode.setBackoffMechanism(BackoffMechanism.valueOf(config.getBackoffMechanism()));
+            }
+            procNode.setMaxBackoffPeriod(config.getMaxBackoffPeriod());
             updateNonFingerprintedProcessorSettings(procNode, processorDTO);
 
             if (config.getSchedulingStrategy() != null) {

@@ -40,6 +40,7 @@ import org.apache.nifi.connectable.Port;
 import org.apache.nifi.connectable.Position;
 import org.apache.nifi.connectable.Positionable;
 import org.apache.nifi.connectable.Size;
+import org.apache.nifi.controller.BackoffMechanism;
 import org.apache.nifi.controller.ComponentNode;
 import org.apache.nifi.controller.ConfigurationContext;
 import org.apache.nifi.controller.ControllerService;
@@ -5016,6 +5017,19 @@ public final class StandardProcessGroup implements ProcessGroup {
             processor.setStyle(proposed.getStyle());
             processor.setYieldPeriod(proposed.getYieldDuration());
             processor.setPosition(new Position(proposed.getPosition().getX(), proposed.getPosition().getY()));
+
+            processor.setMaxBackoffPeriod(proposed.getMaxBackoffPeriod());
+            processor.setRetriedRelationships(proposed.getRetriedRelationships());
+
+            if (proposed.getRetryCounts() != null) {
+                processor.setRetryCounts(proposed.getRetryCounts());
+            } else {
+                processor.setRetryCounts(0);
+            }
+
+            if (proposed.getBackoffMechanism() != null) {
+                processor.setBackoffMechanism(BackoffMechanism.valueOf(proposed.getBackoffMechanism()));
+            }
 
             if (proposed.getScheduledState() == org.apache.nifi.flow.ScheduledState.DISABLED) {
                 processor.getProcessGroup().disableProcessor(processor);
