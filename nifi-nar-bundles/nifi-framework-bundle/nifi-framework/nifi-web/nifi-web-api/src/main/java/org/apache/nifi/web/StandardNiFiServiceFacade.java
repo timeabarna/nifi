@@ -5610,12 +5610,20 @@ public class StandardNiFiServiceFacade implements NiFiServiceFacade {
 
         PrometheusMetricsUtil.createJvmMetrics(jvmMetricsRegistry, JmxJvmMetrics.getInstance(), instanceId);
 
+        final Map<String, Double> aggregatedMetrics = new HashMap<>();
+        PrometheusMetricsUtil.aggregatePercentUsed(rootPGStatus, aggregatedMetrics);
+        nifiMetricsRegistry.setDataPoint(aggregatedMetrics.get("nifi_percent_used_bytes"),
+         "PERCENT_USED_BYTES", instanceId, "RootProcessGroup", rootPGName, rootPGId, "", "", "", "", "");
+        nifiMetricsRegistry.setDataPoint(aggregatedMetrics.get("nifi_percent_used_count"),
+         "PERCENT_USED_COUNT", instanceId, "RootProcessGroup", rootPGName, rootPGId, "", "", "", "", "");
+
         // Get Connection Status Analytics (predictions, e.g.)
         Set<Connection> connections = controllerFacade.getFlowManager().findAllConnections();
         for (Connection c : connections) {
             // If a ResourceNotFoundException is thrown, analytics hasn't been enabled
             try {
-                PrometheusMetricsUtil.createConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry, controllerFacade.getConnectionStatusAnalytics(c.getIdentifier()),
+                PrometheusMetricsUtil.createConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry, aggregatedMetrics,
+                        controllerFacade.getConnectionStatusAnalytics(c.getIdentifier()),
                         instanceId,
                         "Connection",
                         c.getName(),
@@ -5630,6 +5638,7 @@ public class StandardNiFiServiceFacade implements NiFiServiceFacade {
                 break;
             }
         }
+        PrometheusMetricsUtil.createAggregatedConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry, aggregatedMetrics, instanceId, "RootProcessGroup", rootPGName, rootPGId);
 
         // Create a query to get all bulletins
         final BulletinQueryDTO query = new BulletinQueryDTO();
