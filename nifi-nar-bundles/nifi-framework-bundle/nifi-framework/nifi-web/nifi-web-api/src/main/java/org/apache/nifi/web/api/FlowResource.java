@@ -422,7 +422,10 @@ public class FlowResource extends ApplicationResource {
                     value = "The producer for flow file metrics. Each producer may have its own output format.",
                     required = true
             )
-            @PathParam("producer") final String producer) throws InterruptedException {
+            @PathParam("producer") final String producer,
+            @QueryParam("sampleName") final String sampleName,
+            @QueryParam("sampleLabelValues") final String sampleLabelValues,
+            @QueryParam("firstFieldName") @DefaultValue("samples") final String firstFieldName) throws InterruptedException {
 
         authorizeFlow();
 
@@ -444,20 +447,18 @@ public class FlowResource extends ApplicationResource {
             return generateOkResponse(response)
                     .type(MediaType.TEXT_PLAIN_TYPE)
                     .build();
-        } else if ("clouderamanager".equalsIgnoreCase(producer)) {
+        } else if ("json".equalsIgnoreCase(producer)) {
             final Collection<CollectorRegistry> allRegistries = serviceFacade.generateFlowMetrics();
             final Map<String, List<Collector.MetricFamilySamples.Sample>> response = new HashMap<>();
+            final boolean allSampleRequired = StringUtils.isBlank(sampleName) || StringUtils.isBlank(sampleLabelValues);
 
-            //Output format is the JMX format based of the Cloudera Manager metric descriptor can be found here:
-            //https://github.com/cloudera/cm_ext/wiki/Service-Monitoring-Descriptor-Language-Reference#-metrics
-            //Metric samples are filtered to jvm and root samples only
             for (CollectorRegistry collectorRegistry : allRegistries) {
                 Enumeration<Collector.MetricFamilySamples> e = collectorRegistry.metricFamilySamples();
                 while (e.hasMoreElements()) {
                     Collector.MetricFamilySamples metricFamilySamples = e.nextElement();
                     for (Collector.MetricFamilySamples.Sample sample: metricFamilySamples.samples) {
-                        if (sample.name.contains("_jvm_") || sample.labelValues.contains("RootProcessGroup")) {
-                            response.computeIfAbsent("beans", v -> new ArrayList<>()).add(sample);
+                        if (allSampleRequired || sample.name.contains(sampleName) || sample.labelValues.contains(sampleLabelValues)) {
+                            response.computeIfAbsent(firstFieldName, v -> new ArrayList<>()).add(sample);
                         }
                     }
                 }

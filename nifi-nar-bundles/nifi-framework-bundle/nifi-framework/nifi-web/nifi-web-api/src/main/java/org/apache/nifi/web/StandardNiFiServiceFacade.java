@@ -93,6 +93,7 @@ import org.apache.nifi.controller.service.ControllerServiceReference;
 import org.apache.nifi.controller.service.ControllerServiceState;
 import org.apache.nifi.controller.status.ProcessGroupStatus;
 import org.apache.nifi.controller.status.ProcessorStatus;
+import org.apache.nifi.controller.status.analytics.StatusAnalytics;
 import org.apache.nifi.diagnostics.SystemDiagnostics;
 import org.apache.nifi.events.BulletinFactory;
 import org.apache.nifi.expression.ExpressionLanguageScope;
@@ -5612,18 +5613,16 @@ public class StandardNiFiServiceFacade implements NiFiServiceFacade {
 
         final Map<String, Double> aggregatedMetrics = new HashMap<>();
         PrometheusMetricsUtil.aggregatePercentUsed(rootPGStatus, aggregatedMetrics);
-        nifiMetricsRegistry.setDataPoint(aggregatedMetrics.get("nifi_percent_used_bytes"),
-         "PERCENT_USED_BYTES", instanceId, "RootProcessGroup", rootPGName, rootPGId, "", "", "", "", "");
-        nifiMetricsRegistry.setDataPoint(aggregatedMetrics.get("nifi_percent_used_count"),
-         "PERCENT_USED_COUNT", instanceId, "RootProcessGroup", rootPGName, rootPGId, "", "", "", "", "");
+        PrometheusMetricsUtil.createAggregatedNifiMetrics(nifiMetricsRegistry, aggregatedMetrics, instanceId,"RootProcessGroup", rootPGName, rootPGId);
 
         // Get Connection Status Analytics (predictions, e.g.)
         Set<Connection> connections = controllerFacade.getFlowManager().findAllConnections();
         for (Connection c : connections) {
             // If a ResourceNotFoundException is thrown, analytics hasn't been enabled
             try {
-                PrometheusMetricsUtil.createConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry, aggregatedMetrics,
-                        controllerFacade.getConnectionStatusAnalytics(c.getIdentifier()),
+                final StatusAnalytics statusAnalytics = controllerFacade.getConnectionStatusAnalytics(c.getIdentifier());
+                PrometheusMetricsUtil.createConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry,
+                        statusAnalytics,
                         instanceId,
                         "Connection",
                         c.getName(),
@@ -5634,6 +5633,7 @@ public class StandardNiFiServiceFacade implements NiFiServiceFacade {
                         c.getDestination().getName(),
                         c.getDestination().getIdentifier()
                 );
+                PrometheusMetricsUtil.aggregateConnectionPredictionMetrics(aggregatedMetrics, statusAnalytics.getPredictions());
             } catch (ResourceNotFoundException rnfe) {
                 break;
             }
