@@ -41,13 +41,19 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TestPrometheusMetricsUtil {
-    private static final long DEFAULT_PREDICTION_VALUE = -1l;
+    private static final long DEFAULT_PREDICTION_VALUE = -1L;
     private static final double EXPECTED_DEFAULT_PREDICTION_VALUE = -1.0;
+    private static final double EXPECTED_BACKPRESSURE_PREDICTION_VALUE = 0.0;
+    private static final double EXPECTED_FALSE_BACKPRESSURE = 0.0;
+    private static final double EXPECTED_TRUE_BACKPRESSURE = 1.0;
     private static final double EXPECTED_DEFAULT_PERCENT_USED_VALUE = 0.0;
-    private static final double EXPECTED_NESTED_BYTES_PERCENT_VALUE = 15000 / 2 * 100;
-    private static final double EXPECTED_NESTED_COUNT_PERCENT_VALUE = 10 / 2 * 100;
+    private static final double EXPECTED_BACKPRESSURE_PERCENT_USED_VALUE = 100.0;
+    private static final double EXPECTED_NESTED_BYTES_PERCENT_VALUE = 150.0 / 200.0 * 100.0;
+    private static final double EXPECTED_NESTED_COUNT_PERCENT_VALUE = 5.0 / 30.0 * 100.0;
     private static final String NIFI_PERCENT_USED_BYTES = "nifi_percent_used_bytes";
     private static final String NIFI_PERCENT_USED_COUNT = "nifi_percent_used_count";
+    private static final String BYTES_AT_BACKPRESSURE = "bytesAtBackpressure";
+    private static final String COUNT_AT_BACKPRESSURE = "countAtBackpressure";
     private static final String NIFI_TIME_TO_BYTES_BACKPRESSURE_PREDICTION = "nifi_time_to_bytes_backpressure_prediction";
     private static final String NIFI_TIME_TO_COUNT_BACKPRESSURE_PREDICTION = "nifi_time_to_count_backpressure_prediction";
     private static final String CONNECTION_1 = "Connection1";
@@ -59,6 +65,8 @@ public class TestPrometheusMetricsUtil {
 
     private static ProcessGroupStatus singleProcessGroupStatus;
     private static ProcessGroupStatus nestedProcessGroupStatus;
+    private static ProcessGroupStatus singleProcessGroupStatusWithBytesBackpressure;
+    private static ProcessGroupStatus nestedProcessGroupStatusWithCountBackpressure;
     private static Set<String> connections;
     private static Map<String, Map<String, Long>> mixedValuedPredictions;
     private static Map<String, Map<String, Long>> defaultValuedPredictions;
@@ -67,6 +75,8 @@ public class TestPrometheusMetricsUtil {
     public static void setup() {
         singleProcessGroupStatus = createSingleProcessGroupStatus(0, 1, 0, 1);
         nestedProcessGroupStatus = createNestedProcessGroupStatus();
+        singleProcessGroupStatusWithBytesBackpressure = createSingleProcessGroupStatus(1, 1, 0, 1);
+        nestedProcessGroupStatusWithCountBackpressure = createNestedProcessGroupStatusWithCountBackpressure();
         connections = createConnections();
         mixedValuedPredictions = createPredictionsWithMixedValue();
         defaultValuedPredictions = createPredictionsWithDefaultValuesOnly();
@@ -78,9 +88,24 @@ public class TestPrometheusMetricsUtil {
 
         PrometheusMetricsUtil.aggregatePercentUsed(singleProcessGroupStatus, aggregatedMetrics);
 
-        assertThat(aggregatedMetrics.size(), equalTo(2));
+        assertThat(aggregatedMetrics.size(), equalTo(4));
         assertThat(EXPECTED_DEFAULT_PERCENT_USED_VALUE, equalTo(aggregatedMetrics.get(NIFI_PERCENT_USED_BYTES)));
         assertThat(EXPECTED_DEFAULT_PERCENT_USED_VALUE, equalTo(aggregatedMetrics.get(NIFI_PERCENT_USED_COUNT)));
+        assertThat(EXPECTED_FALSE_BACKPRESSURE, equalTo(aggregatedMetrics.get(BYTES_AT_BACKPRESSURE)));
+        assertThat(EXPECTED_FALSE_BACKPRESSURE, equalTo(aggregatedMetrics.get(COUNT_AT_BACKPRESSURE)));
+    }
+
+    @Test
+    public void testAggregatePercentUsedWithSingleProcessGroupWithBytesBackpressure() {
+        final Map<String, Double> aggregatedMetrics = new HashMap<>();
+
+        PrometheusMetricsUtil.aggregatePercentUsed(singleProcessGroupStatusWithBytesBackpressure, aggregatedMetrics);
+
+        assertThat(aggregatedMetrics.size(), equalTo(4));
+        assertThat(EXPECTED_BACKPRESSURE_PERCENT_USED_VALUE, equalTo(aggregatedMetrics.get(NIFI_PERCENT_USED_BYTES)));
+        assertThat(EXPECTED_DEFAULT_PERCENT_USED_VALUE, equalTo(aggregatedMetrics.get(NIFI_PERCENT_USED_COUNT)));
+        assertThat(EXPECTED_TRUE_BACKPRESSURE, equalTo(aggregatedMetrics.get(BYTES_AT_BACKPRESSURE)));
+        assertThat(EXPECTED_FALSE_BACKPRESSURE, equalTo(aggregatedMetrics.get(COUNT_AT_BACKPRESSURE)));
     }
 
     @Test
@@ -89,33 +114,61 @@ public class TestPrometheusMetricsUtil {
 
         PrometheusMetricsUtil.aggregatePercentUsed(nestedProcessGroupStatus, aggregatedMetrics);
 
-        assertThat(aggregatedMetrics.size(), equalTo(2));
+        assertThat(aggregatedMetrics.size(), equalTo(4));
         assertThat(EXPECTED_NESTED_BYTES_PERCENT_VALUE, equalTo(aggregatedMetrics.get(NIFI_PERCENT_USED_BYTES)));
         assertThat(EXPECTED_NESTED_COUNT_PERCENT_VALUE, equalTo(aggregatedMetrics.get(NIFI_PERCENT_USED_COUNT)));
+        assertThat(EXPECTED_FALSE_BACKPRESSURE, equalTo(aggregatedMetrics.get(BYTES_AT_BACKPRESSURE)));
+        assertThat(EXPECTED_FALSE_BACKPRESSURE, equalTo(aggregatedMetrics.get(COUNT_AT_BACKPRESSURE)));
+    }
+
+    @Test
+    public void testAggregatePercentUsedWithNestedProcessGroupsWithCountBackpressure() {
+        final Map<String, Double> aggregatedMetrics = new HashMap<>();
+
+        PrometheusMetricsUtil.aggregatePercentUsed(nestedProcessGroupStatusWithCountBackpressure, aggregatedMetrics);
+
+        assertThat(aggregatedMetrics.size(), equalTo(4));
+        assertThat(EXPECTED_NESTED_BYTES_PERCENT_VALUE, equalTo(aggregatedMetrics.get(NIFI_PERCENT_USED_BYTES)));
+        assertThat(EXPECTED_BACKPRESSURE_PERCENT_USED_VALUE, equalTo(aggregatedMetrics.get(NIFI_PERCENT_USED_COUNT)));
+        assertThat(EXPECTED_FALSE_BACKPRESSURE, equalTo(aggregatedMetrics.get(BYTES_AT_BACKPRESSURE)));
+        assertThat(EXPECTED_TRUE_BACKPRESSURE, equalTo(aggregatedMetrics.get(COUNT_AT_BACKPRESSURE)));
     }
 
     @Test
     public void testAggregateConnectionPredictionsWithMixedValues() {
-        Map<String, Double> result = generateConnectionAnalyticMetricsAggregation(mixedValuedPredictions);
+        Map<String, Double> aggregatedMetrics = new HashMap<>();
+        generateConnectionAnalyticMetricsAggregation(aggregatedMetrics, mixedValuedPredictions);
 
-        assertThat(result.size(), equalTo(2));
-        assertThat(0.0, equalTo(result.get(NIFI_TIME_TO_BYTES_BACKPRESSURE_PREDICTION)));
-        assertThat(2.0, equalTo(result.get(NIFI_TIME_TO_COUNT_BACKPRESSURE_PREDICTION)));
+        assertThat(aggregatedMetrics.size(), equalTo(2));
+        assertThat(1.0, equalTo(aggregatedMetrics.get(NIFI_TIME_TO_BYTES_BACKPRESSURE_PREDICTION)));
+        assertThat(2.0, equalTo(aggregatedMetrics.get(NIFI_TIME_TO_COUNT_BACKPRESSURE_PREDICTION)));
     }
 
     @Test
     public void testAggregateConnectionPredictionsWithAllDefaultValues() {
-        Map<String, Double> result = generateConnectionAnalyticMetricsAggregation(defaultValuedPredictions);
+        Map<String, Double> aggregatedMetrics = new HashMap<>();
+        generateConnectionAnalyticMetricsAggregation(aggregatedMetrics, defaultValuedPredictions);
 
-        assertThat(result.size(), equalTo(2));
-        assertThat(EXPECTED_DEFAULT_PREDICTION_VALUE, equalTo(result.get(NIFI_TIME_TO_BYTES_BACKPRESSURE_PREDICTION)));
-        assertThat(EXPECTED_DEFAULT_PREDICTION_VALUE, equalTo(result.get(NIFI_TIME_TO_COUNT_BACKPRESSURE_PREDICTION)));
+        assertThat(aggregatedMetrics.size(), equalTo(2));
+        assertThat(EXPECTED_DEFAULT_PREDICTION_VALUE, equalTo(aggregatedMetrics.get(NIFI_TIME_TO_BYTES_BACKPRESSURE_PREDICTION)));
+        assertThat(EXPECTED_DEFAULT_PREDICTION_VALUE, equalTo(aggregatedMetrics.get(NIFI_TIME_TO_COUNT_BACKPRESSURE_PREDICTION)));
+    }
+
+    @Test
+    public void testAggregateConnectionPredictionsWithBackpressure() {
+        Map<String, Double> aggregatedMetrics = new HashMap<>();
+        aggregatedMetrics.put(BYTES_AT_BACKPRESSURE, 1.0);
+        aggregatedMetrics.put(COUNT_AT_BACKPRESSURE, 0.0);
+        generateConnectionAnalyticMetricsAggregation(aggregatedMetrics, mixedValuedPredictions);
+
+        assertThat(EXPECTED_BACKPRESSURE_PREDICTION_VALUE, equalTo(aggregatedMetrics.get(NIFI_TIME_TO_BYTES_BACKPRESSURE_PREDICTION)));
+        assertThat(2.0, equalTo(aggregatedMetrics.get(NIFI_TIME_TO_COUNT_BACKPRESSURE_PREDICTION)));
     }
 
     @Test
     public void testAggregatedConnectionPredictionsDatapointCreationWithAnalyticsNotSet() {
         ConnectionAnalyticsMetricsRegistry connectionAnalyticsMetricsRegistry = new ConnectionAnalyticsMetricsRegistry();
-        Map<String, Double> emptyAggregatedMetrics = Collections.EMPTY_MAP;
+        Map<String, Double> emptyAggregatedMetrics = new HashMap<>();
 
         PrometheusMetricsUtil.createAggregatedConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry,
                 emptyAggregatedMetrics,
@@ -134,10 +187,11 @@ public class TestPrometheusMetricsUtil {
     @Test
     public void testAggregatedConnectionPredictionsDatapointCreationWithAllDefaultValues() {
         ConnectionAnalyticsMetricsRegistry connectionAnalyticsMetricsRegistry = new ConnectionAnalyticsMetricsRegistry();
-        Map<String, Double> result = generateConnectionAnalyticMetricsAggregation(defaultValuedPredictions);
+        Map<String, Double> aggregatedMetrics = new HashMap<>();
+        generateConnectionAnalyticMetricsAggregation(aggregatedMetrics, defaultValuedPredictions);
 
         PrometheusMetricsUtil.createAggregatedConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry,
-                result,
+                aggregatedMetrics,
                 "",
                 "",
                 "",
@@ -145,7 +199,7 @@ public class TestPrometheusMetricsUtil {
 
         List<Double> sampleValues = getSampleValuesList(connectionAnalyticsMetricsRegistry);
 
-        assertThat(result.size(), equalTo(2));
+        assertThat(aggregatedMetrics.size(), equalTo(2));
         assertThat(sampleValues.size(), equalTo(2));
         assertThat(sampleValues, everyItem(is(EXPECTED_DEFAULT_PREDICTION_VALUE)));
     }
@@ -153,10 +207,11 @@ public class TestPrometheusMetricsUtil {
     @Test
     public void testAggregatedConnectionPredictionsDatapointCreationWithMixedValues() {
         ConnectionAnalyticsMetricsRegistry connectionAnalyticsMetricsRegistry = new ConnectionAnalyticsMetricsRegistry();
-        Map<String, Double> result = generateConnectionAnalyticMetricsAggregation(mixedValuedPredictions);
+        Map<String, Double> aggregatedMetrics = new HashMap<>();
+        generateConnectionAnalyticMetricsAggregation(aggregatedMetrics, mixedValuedPredictions);
 
         PrometheusMetricsUtil.createAggregatedConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry,
-                result,
+                aggregatedMetrics,
                 "",
                 "",
                 "",
@@ -164,7 +219,28 @@ public class TestPrometheusMetricsUtil {
 
         List<Double> sampleValues = getSampleValuesList(connectionAnalyticsMetricsRegistry);
 
-        assertThat(result.size(), equalTo(2));
+        assertThat(aggregatedMetrics.size(), equalTo(2));
+        assertThat(sampleValues.size(), equalTo(2));
+        assertThat(sampleValues, CoreMatchers.hasItems(1.0, 2.0));
+    }
+
+    @Test
+    public void testAggregatedConnectionPredictionsDatapointCreationWithBackpressure() {
+        ConnectionAnalyticsMetricsRegistry connectionAnalyticsMetricsRegistry = new ConnectionAnalyticsMetricsRegistry();
+        Map<String, Double> aggregatedMetrics = new HashMap<>();
+        aggregatedMetrics.put(BYTES_AT_BACKPRESSURE, 1.0);
+        aggregatedMetrics.put(COUNT_AT_BACKPRESSURE, 0.0);
+        generateConnectionAnalyticMetricsAggregation(aggregatedMetrics, mixedValuedPredictions);
+
+        PrometheusMetricsUtil.createAggregatedConnectionStatusAnalyticsMetrics(connectionAnalyticsMetricsRegistry,
+                aggregatedMetrics,
+                "",
+                "",
+                "",
+                "");
+
+        List<Double> sampleValues = getSampleValuesList(connectionAnalyticsMetricsRegistry);
+
         assertThat(sampleValues.size(), equalTo(2));
         assertThat(sampleValues, CoreMatchers.hasItems(0.0, 2.0));
     }
@@ -172,7 +248,7 @@ public class TestPrometheusMetricsUtil {
     @Test
     public void testAggregatedNifiMetricsDatapointCreationWithoutResults() {
         NiFiMetricsRegistry niFiMetricsRegistry = new NiFiMetricsRegistry();
-        Map<String, Double> emptyAggregatedMetrics = Collections.EMPTY_MAP;
+        Map<String, Double> emptyAggregatedMetrics = new HashMap<>();
 
         PrometheusMetricsUtil.createAggregatedNifiMetrics(niFiMetricsRegistry,
                 emptyAggregatedMetrics,
@@ -203,7 +279,6 @@ public class TestPrometheusMetricsUtil {
 
         List<Double> sampleValues = getSampleValuesList(niFiMetricsRegistry);
 
-        assertThat(result.size(), equalTo(2));
         assertThat(sampleValues.size(), equalTo(2));
         assertThat(sampleValues, everyItem(is(EXPECTED_DEFAULT_PERCENT_USED_VALUE)));
     }
@@ -223,7 +298,6 @@ public class TestPrometheusMetricsUtil {
 
         List<Double> sampleValues = getSampleValuesList(niFiMetricsRegistry);
 
-        assertThat(result.size(), equalTo(2));
         assertThat(sampleValues.size(), equalTo(2));
         assertThat(sampleValues, CoreMatchers.hasItems(EXPECTED_NESTED_BYTES_PERCENT_VALUE, EXPECTED_NESTED_COUNT_PERCENT_VALUE));
     }
@@ -245,8 +319,19 @@ public class TestPrometheusMetricsUtil {
 
     private static ProcessGroupStatus createNestedProcessGroupStatus() {
         ProcessGroupStatus rootStatus = new ProcessGroupStatus();
-        ProcessGroupStatus status1 = createSingleProcessGroupStatus(1500, 1, 10, 2);
-        ProcessGroupStatus status2 = createSingleProcessGroupStatus(15000, 2, 5, 3);
+        ProcessGroupStatus status1 = createSingleProcessGroupStatus(15, 100, 10, 200);
+        ProcessGroupStatus status2 = createSingleProcessGroupStatus(150, 200, 5, 30);
+
+        status1.setProcessGroupStatus(Collections.singletonList(status2));
+        rootStatus.setProcessGroupStatus(Collections.singletonList(status1));
+
+        return rootStatus;
+    }
+
+    private static ProcessGroupStatus createNestedProcessGroupStatusWithCountBackpressure() {
+        ProcessGroupStatus rootStatus = new ProcessGroupStatus();
+        ProcessGroupStatus status1 = createSingleProcessGroupStatus(15, 100, 1, 1);
+        ProcessGroupStatus status2 = createSingleProcessGroupStatus(150, 200, 5, 30);
 
         status1.setProcessGroupStatus(Collections.singletonList(status2));
         rootStatus.setProcessGroupStatus(Collections.singletonList(status1));
@@ -258,16 +343,16 @@ public class TestPrometheusMetricsUtil {
         Map<String, Map<String, Long>> predictions = new HashMap<>();
 
         predictions.put(CONNECTION_1, new HashMap<String, Long>() {{
+            put(TIME_TO_BYTES_BACKPRESSURE_MILLIS, Long.MAX_VALUE);
+            put(TIME_TO_COUNT_BACKPRESSURE_MILLIS, Long.MAX_VALUE);
+        }});
+        predictions.put(CONNECTION_2, new HashMap<String, Long>() {{
             put(TIME_TO_BYTES_BACKPRESSURE_MILLIS, DEFAULT_PREDICTION_VALUE);
             put(TIME_TO_COUNT_BACKPRESSURE_MILLIS, DEFAULT_PREDICTION_VALUE);
         }});
-        predictions.put(CONNECTION_2, new HashMap<String, Long>() {{
-            put(TIME_TO_BYTES_BACKPRESSURE_MILLIS, 0L);
-            put(TIME_TO_COUNT_BACKPRESSURE_MILLIS, 4L);
-        }});
         predictions.put(CONNECTION_3, new HashMap<String, Long>() {{
-            put(TIME_TO_BYTES_BACKPRESSURE_MILLIS, Long.MAX_VALUE);
-            put(TIME_TO_COUNT_BACKPRESSURE_MILLIS, Long.MAX_VALUE);
+            put(TIME_TO_BYTES_BACKPRESSURE_MILLIS, 1L);
+            put(TIME_TO_COUNT_BACKPRESSURE_MILLIS, 4L);
         }});
         predictions.put(CONNECTION_4, new HashMap<String, Long>() {{
             put(TIME_TO_BYTES_BACKPRESSURE_MILLIS, 3L);
@@ -311,13 +396,9 @@ public class TestPrometheusMetricsUtil {
                 .collect(Collectors.toList());
     }
 
-    private Map<String, Double> generateConnectionAnalyticMetricsAggregation(final Map<String, Map<String, Long>> predictions) {
-        Map<String, Double> aggregatedMetrics = new HashMap();
-
+    private void generateConnectionAnalyticMetricsAggregation(final Map<String, Double> aggregatedMetrics, final Map<String, Map<String, Long>> predictions) {
         for (final String connection : connections) {
             PrometheusMetricsUtil.aggregateConnectionPredictionMetrics(aggregatedMetrics, getPredictions(predictions, connection));
         }
-
-        return aggregatedMetrics;
     }
 }

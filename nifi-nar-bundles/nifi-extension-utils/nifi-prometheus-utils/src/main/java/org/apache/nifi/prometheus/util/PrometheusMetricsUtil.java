@@ -370,33 +370,50 @@ public class PrometheusMetricsUtil {
         status.getProcessGroupStatus().forEach((childGroupStatus) -> aggregatePercentUsed(childGroupStatus, aggregatedMetrics));
 
         for (ConnectionStatus connectionStatus : status.getConnectionStatus()) {
-            determineMaxValueForPredictions(aggregatedMetrics,
-                    "nifi_percent_used_bytes",
-                    getUtilization(connectionStatus.getQueuedBytes(), connectionStatus.getBackPressureBytesThreshold()));
+            final double percentUsedBytes = getUtilization(connectionStatus.getQueuedBytes(), connectionStatus.getBackPressureBytesThreshold());
+            final double percentUsedCount = getUtilization(connectionStatus.getQueuedCount(), connectionStatus.getBackPressureObjectThreshold());
 
-            determineMaxValueForPredictions(aggregatedMetrics,
+            determineMaxValueForPercentUsed(aggregatedMetrics,
+                    "nifi_percent_used_bytes",
+                    percentUsedBytes);
+
+            determineMaxValueForPercentUsed(aggregatedMetrics,
                     "nifi_percent_used_count",
-                    getUtilization(connectionStatus.getQueuedCount(), connectionStatus.getBackPressureObjectThreshold()));
+                    percentUsedCount);
+
+            setBackpressure(aggregatedMetrics, percentUsedBytes, "bytesAtBackpressure");
+            setBackpressure(aggregatedMetrics, percentUsedCount, "countAtBackpressure");
         }
     }
 
     public static void aggregateConnectionPredictionMetrics(final Map<String, Double> aggregatedMetrics, final Map<String, Long> predictions) {
         determineMinValueForPredictions(aggregatedMetrics,
                 "nifi_time_to_bytes_backpressure_prediction",
-                predictions.get("timeToBytesBackpressureMillis"));
+                predictions.get("timeToBytesBackpressureMillis"),
+                "bytesAtBackpressure");
 
         determineMinValueForPredictions(aggregatedMetrics,
                 "nifi_time_to_count_backpressure_prediction",
-                predictions.get("timeToCountBackpressureMillis"));
+                predictions.get("timeToCountBackpressureMillis"),
+                "countAtBackpressure");
     }
 
+    private static void setBackpressure(final Map<String, Double> aggregatedMetrics, final double percentUsed, final String atBackpressureKey) {
+        if (percentUsed >= 100) {
+            aggregatedMetrics.put(atBackpressureKey, 1.0);
+        } else if (!aggregatedMetrics.containsKey(atBackpressureKey)) {
+            aggregatedMetrics.put(atBackpressureKey, 0.0);
+        }
+    }
 
-    private static void determineMinValueForPredictions(final Map<String, Double> aggregatedMetrics, final String metricFamilySamplesName, final double metricSampleValue) {
-
+    private static void determineMinValueForPredictions(final Map<String, Double> aggregatedMetrics, final String metricFamilySamplesName,
+                                                        final double metricSampleValue, final String atBackpressureKey) {
         final Double currentValue = aggregatedMetrics.get(metricFamilySamplesName);
-        if (currentValue == null) {
-            aggregatedMetrics.put(metricFamilySamplesName, -1.0);
-        } else if (metricSampleValue != -1) {
+        if (aggregatedMetrics.get(atBackpressureKey) != null && aggregatedMetrics.get(atBackpressureKey) == 1.0) {
+            aggregatedMetrics.put(metricFamilySamplesName, 0.0);
+        } else if (currentValue == null) {
+            aggregatedMetrics.put(metricFamilySamplesName, metricSampleValue);
+        } else if (metricSampleValue > -1) {
             if (currentValue == -1) {
                 aggregatedMetrics.put(metricFamilySamplesName, metricSampleValue);
             } else {
@@ -405,7 +422,7 @@ public class PrometheusMetricsUtil {
         }
     }
 
-    private static void determineMaxValueForPredictions(final Map<String, Double> aggregatedMetrics, final String metricFamilySamplesName, final double metricSampleValue) {
+    private static void determineMaxValueForPercentUsed(final Map<String, Double> aggregatedMetrics, final String metricFamilySamplesName, final double metricSampleValue) {
 
         Double currentValue = aggregatedMetrics.get(metricFamilySamplesName);
         if (currentValue == null) {
