@@ -31,9 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public abstract class AbstractHttpsExternalResourceProviderTest {
     private static final Comparator<ExternalResourceDescriptor> DESCRIPTOR_COMPARATOR =
             Comparator.comparing(ExternalResourceDescriptor::getLocation)
-                    .thenComparing(ExternalResourceDescriptor::getPath)
-                    .thenComparing(ExternalResourceDescriptor::getLastModified)
-                    .thenComparing(ExternalResourceDescriptor::isDirectory);
+                    .thenComparing(ExternalResourceDescriptor::getLastModified);
 
     protected void assertSuccess(final Collection<ExternalResourceDescriptor> expected, final Collection<ExternalResourceDescriptor> actual) {
         assertEquals(expected.size(), actual.size());
@@ -52,7 +50,7 @@ public abstract class AbstractHttpsExternalResourceProviderTest {
             }
         }
 
-        assertTrue(missingDescriptors.isEmpty(), "Unexpected elemet(s): " + StringUtils.join(missingDescriptors, " ,"));
+        assertTrue(missingDescriptors.isEmpty(), "Unexpected element(s): " + StringUtils.join(missingDescriptors, " ,"));
     }
 
     protected void assertResourceIsNotIncluded(final Collection<ExternalResourceDescriptor> actual, final String location) {

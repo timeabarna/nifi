@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -109,22 +108,17 @@ abstract class ConflictResolvingExternalResourceProviderWorker implements Extern
     private void poll() throws IOException {
         LOGGER.debug("Worker starts polling provider for resources");
 
-        Collection<ExternalResourceDescriptor> availableResources;
+        final Collection<ExternalResourceDescriptor> availableResources;
         try (final NarCloseable narCloseable = NarCloseable.withComponentNarLoader(providerClassLoader)) {
             availableResources = provider.listResources();
         }
-        while (!availableResources.isEmpty()) {
-            final Collection<ExternalResourceDescriptor> resourcesToCheck = new ArrayList<>();
-            for (final ExternalResourceDescriptor availableResource : availableResources) {
-                if (availableResource.isDirectory()) {
-                    resourcesToCheck.addAll(provider.listResources(availableResource));
-                } else if (resolutionStrategy.shouldBeFetched(targetDirectory, availableResource)) {
-                    acquireResource(availableResource);
-                } else {
-                    LOGGER.trace("External resource {} is not to be fetched", availableResource.getLocation());
-                }
+
+        for (final ExternalResourceDescriptor availableResource : availableResources) {
+            if (resolutionStrategy.shouldBeFetched(targetDirectory, availableResource)) {
+                acquireResource(availableResource);
+            } else {
+                LOGGER.trace("External resource {} is not to be fetched", availableResource.getLocation());
             }
-            availableResources = resourcesToCheck;
         }
     }
 

@@ -16,6 +16,8 @@
  */
 package org.apache.nifi.flow.resource;
 
+import org.apache.nifi.xml.processing.ProcessingException;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.xml.sax.SAXException;
 
@@ -24,13 +26,24 @@ import javax.xml.xpath.XPathExpressionException;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class ExternalResourceListAsHtmlParserTest extends AbstractHttpsExternalResourceProviderTest {
+class ExternalResourceXmlParserTest extends AbstractHttpsExternalResourceProviderTest {
+    private static ExternalResourceParserConfiguration parserConfiguration;
+
+    @BeforeAll
+    static void setUp() {
+        parserConfiguration = new ExternalResourceParserConfiguration("//tr[count(td)>2]",
+                "./td[1]/a/text()",
+                "./td[2]/text()",
+                "./td[1]/a[contains(text(), '/')]",
+                "yyy-MM-dd HH:mm");
+    }
 
     @Test
     void parseEmptyResponse() throws XPathExpressionException, ParserConfigurationException, IOException, SAXException {
@@ -39,12 +52,12 @@ class ExternalResourceListAsHtmlParserTest extends AbstractHttpsExternalResource
                 .htmlEnd()
                 .build();
 
-        final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
-        final Collection<ExternalResourceDescriptor> expected = Collections.emptySet();
+        final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
+        final Collection<ExternalResourceParserResult> expected = Collections.emptyList();
 
-        final Collection<ExternalResourceDescriptor> result = parser.parseResponse(emptyHtml, "https://test/");
+        final Collection<ExternalResourceParserResult> result = parser.parseResponse(emptyHtml, "https://test");
 
-        assertSuccess(expected, result);
+        assertEquals(expected, result);
     }
 
     @Test
@@ -58,12 +71,12 @@ class ExternalResourceListAsHtmlParserTest extends AbstractHttpsExternalResource
                 .htmlEnd()
                 .build();
 
-        final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
-        final Collection<ExternalResourceDescriptor> expected = Collections.emptySet();
+        final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
+        final Collection<ExternalResourceParserResult> expected = Collections.emptyList();
 
-        final Collection<ExternalResourceDescriptor> result = parser.parseResponse(parentOnlyHtml, "https://test/");
+        final Collection<ExternalResourceParserResult> result = parser.parseResponse(parentOnlyHtml, "https://test");
 
-        assertSuccess(expected, result);
+        assertEquals(expected, result);
     }
 
     @Test
@@ -78,15 +91,15 @@ class ExternalResourceListAsHtmlParserTest extends AbstractHttpsExternalResource
                 .htmlEnd()
                 .build();
 
-        final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
+        final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
 
-        final Collection<ExternalResourceDescriptor> expected = new HashSet<>();
-        final ExternalResourceDescriptor file1 = new ImmutableExternalResourceDescriptor("file1", 1621285740000L, "https://test/", false);
+        final Collection<ExternalResourceParserResult> expected = new ArrayList<>();
+        final ExternalResourceParserResult file1 = new ExternalResourceParserResult("file1", 1621285740000L, "https://test", false);
         expected.add(file1);
 
-        final Collection<ExternalResourceDescriptor> result = parser.parseResponse(fileOnlyHtml, "https://test/");
+        final Collection<ExternalResourceParserResult> result = parser.parseResponse(fileOnlyHtml, "https://test");
 
-        assertSuccess(expected, result);
+        assertEquals(expected, result);
     }
 
     @Test
@@ -101,15 +114,15 @@ class ExternalResourceListAsHtmlParserTest extends AbstractHttpsExternalResource
                 .htmlEnd()
                 .build();
 
-        final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
+        final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
 
-        final Collection<ExternalResourceDescriptor> expected = new HashSet<>();
-        final ExternalResourceDescriptor dir1 = new ImmutableExternalResourceDescriptor("dir1/", 0, "https://test/", true);
+        final Collection<ExternalResourceParserResult> expected = new ArrayList<>();
+        final ExternalResourceParserResult dir1 = new ExternalResourceParserResult("dir1/", 0, "https://test", true);
         expected.add(dir1);
 
-        final Collection<ExternalResourceDescriptor> result = parser.parseResponse(directoryOnlyHtml, "https://test/");
+        final Collection<ExternalResourceParserResult> result = parser.parseResponse(directoryOnlyHtml, "https://test");
 
-        assertSuccess(expected, result);
+        assertEquals(expected, result);
     }
 
     @Test
@@ -125,26 +138,26 @@ class ExternalResourceListAsHtmlParserTest extends AbstractHttpsExternalResource
                 .htmlEnd()
                 .build();
 
-        final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
+        final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
 
-        final Collection<ExternalResourceDescriptor> expected = new HashSet<>();
-        final ExternalResourceDescriptor dir1 = new ImmutableExternalResourceDescriptor("dir1/", 0, "https://test/", true);
-        final ExternalResourceDescriptor file1 = new ImmutableExternalResourceDescriptor("file1", 1621285740000L, "https://test/", false);
+        final Collection<ExternalResourceParserResult> expected = new ArrayList<>();
+        final ExternalResourceParserResult dir1 = new ExternalResourceParserResult("dir1/", 0, "https://test", true);
+        final ExternalResourceParserResult file1 = new ExternalResourceParserResult("file1", 1621285740000L, "https://test", false);
         expected.add(dir1);
         expected.add(file1);
 
-        final Collection<ExternalResourceDescriptor> result = parser.parseResponse(mixedHtml, "https://test/");
+        final Collection<ExternalResourceParserResult> result = parser.parseResponse(mixedHtml, "https://test");
 
-        assertSuccess(expected, result);
+        assertEquals(expected, result);
     }
 
     @Test
-    void parseResponseWithIncorrectHtml() throws XPathExpressionException {
-        final String incorrectHtml = HtmlBuilder.newInstance().htmlStart().build();
+    void parseResponseWithInvalidHtml() throws XPathExpressionException {
+        final String invalidHtml = HtmlBuilder.newInstance().htmlStart().build();
 
-        final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
+        final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
 
-        assertThrows(SAXException.class, () -> parser.parseResponse(incorrectHtml, "https://test/"));
+        assertThrows(ProcessingException.class, () -> parser.parseResponse(invalidHtml, "https://test"));
     }
 
     @Test
@@ -159,9 +172,9 @@ class ExternalResourceListAsHtmlParserTest extends AbstractHttpsExternalResource
                 .htmlEnd()
                 .build();
 
-        final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
+        final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
 
-        assertThrows(DateTimeParseException.class, () -> parser.parseResponse(htmlWithIncorrectDate, "https://test/"));
+        assertThrows(DateTimeParseException.class, () -> parser.parseResponse(htmlWithIncorrectDate, "https://test"));
     }
 
     @Test
@@ -176,8 +189,8 @@ class ExternalResourceListAsHtmlParserTest extends AbstractHttpsExternalResource
                 .htmlEnd()
                 .build();
 
-        final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
+        final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
 
-        assertThrows(DateTimeParseException.class, () -> parser.parseResponse(htmlWithIncorrectDateFormat, "https://test/"));
+        assertThrows(DateTimeParseException.class, () -> parser.parseResponse(htmlWithIncorrectDateFormat, "https://test"));
     }
 }

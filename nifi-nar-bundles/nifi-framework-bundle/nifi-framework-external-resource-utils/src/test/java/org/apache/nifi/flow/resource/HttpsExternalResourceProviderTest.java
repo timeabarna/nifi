@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +58,7 @@ public class HttpsExternalResourceProviderTest extends AbstractHttpsExternalReso
     private static final String URL = "https://test/versions/";
     private static final String VERSION_BASED_PATH_FILTER = "1\\.16\\.\\d*\\/|.*\\.nar";
     private static final String DIRECT_PATH_FILTER = ".*1\\.16\\.\\d*\\.nar";
-    private static final String NAR_LOCATION_SPECIFIC_FILTER_WITHOUT_PROPERTY = "1\\.16.\\d*\\/|nars\\/|.*\\.nar";
+    private static final String NAR_LOCATION_SPECIFIC_FILTER_WITHOUT_PROPERTY = "1\\.16.\\d*\\/|.*nars\\/|.*\\.nar";
     private static final String NAR_LOCATION_SPECIFIC_FILTER_WITH_PROPERTY = "1\\.16.\\d*\\/|.*\\.nar";
     private static final Request REQUEST = new Request.Builder().get().url(URL).build();
     private static final String FILE1_1_16_0_NAR = String.format(NAR_NAME_FORMAT, EXPECTED_VERSIONS.get(0));
@@ -71,6 +72,10 @@ public class HttpsExternalResourceProviderTest extends AbstractHttpsExternalReso
     private static final String HTML_FOR_RESOURCE_FILE1_1_16_13_NAR = createHtmlForResource(FILE1_1_16_13_NAR);
     private static final String HTML_FOR_ALL_AVAILABLE_RESOURCES = createHtmlWithAllAvailableResources();
     private static final String HTML_FOR_NAR_LOCATION = createHtmlForNarLocation();
+    private static final String HTML_FOR_MIXED_ENTRY_FOR_RESOURCE_FILE1_1_16_0_NAR = createHtmlForMixedEntryForResource(FILE1_1_16_0_NAR);
+    private static final String HTML_FOR_MIXED_ENTRY_FOR_RESOURCE_FILE1_1_16_1_NAR = createHtmlForMixedEntryForResource(FILE1_1_16_1_NAR);
+    private static final String HTML_FOR_MIXED_ENTRY_FOR_RESOURCE_FILE1_1_16_2_NAR = createHtmlForMixedEntryForResource(FILE1_1_16_2_NAR);
+    private static final String HTML_FOR_MIXED_ENTRY_FOR_RESOURCE_FILE1_1_16_13_NAR = createHtmlForMixedEntryForResource(FILE1_1_16_13_NAR);
     public static final long SLEEPING_TIME = 1000L;
 
     @Test
@@ -185,6 +190,41 @@ public class HttpsExternalResourceProviderTest extends AbstractHttpsExternalReso
         verify(providerSpy, times(8)).listResources(any());
     }
 
+    @Test
+    void testWhenAvailableResourcesWithNameConflict() throws IOException, IllegalAccessException {
+        // Example url for resources may be:
+        // http://test/versions/1.15.0/file1-1.15.0.nar
+        // http://test/versions/1.15.0/nars/file1-1.15.0.nar
+        // http://test/versions/1.16.0/file1-1.16.0.nar
+        // http://test/versions/1.16.0/nars/file1-1.16.0.nar
+        // and so on...
+        // nar.location property = "" or not provided
+
+        final HttpsExternalResourceProvider providerSpy = getHttpsExternalResourceProviderSpy(NAR_LOCATION_SPECIFIC_FILTER_WITHOUT_PROPERTY, NAR_LOCATION_NOT_SPECIFIED);
+
+        final Response versionResponse = createResponse(HTML_FOR_DIRECTORY_LIKE_ENTRIES_WITH_ALL_AVAILABLE_VERSIONS);
+        final Response responseForNarLocation1 = createResponse(HTML_FOR_MIXED_ENTRY_FOR_RESOURCE_FILE1_1_16_0_NAR);
+        final Response responseForNarLocation2 = createResponse(HTML_FOR_MIXED_ENTRY_FOR_RESOURCE_FILE1_1_16_1_NAR);
+        final Response responseForNarLocation3 = createResponse(HTML_FOR_MIXED_ENTRY_FOR_RESOURCE_FILE1_1_16_2_NAR);
+        final Response responseForNarLocation4 = createResponse(HTML_FOR_MIXED_ENTRY_FOR_RESOURCE_FILE1_1_16_13_NAR);
+        final Response responseForResource1 = createResponse(HTML_FOR_RESOURCE_FILE1_1_16_0_NAR);
+        final Response responseForResource2 = createResponse(HTML_FOR_RESOURCE_FILE1_1_16_1_NAR);
+        final Response responseForResource3 = createResponse(HTML_FOR_RESOURCE_FILE1_1_16_2_NAR);
+        final Response responseForResource4 = createResponse(HTML_FOR_RESOURCE_FILE1_1_16_13_NAR);
+
+        final Call call = configureHttpCallForProvider(providerSpy);
+        when(call.execute()).thenReturn(versionResponse, responseForNarLocation1, responseForNarLocation2, responseForNarLocation3, responseForNarLocation4,
+                responseForResource1, responseForResource2, responseForResource3, responseForResource4);
+
+        final Collection<ExternalResourceDescriptor> expected = Collections.emptyList();
+
+        final Collection<ExternalResourceDescriptor> result = poll(providerSpy);
+
+        assertSuccess(expected, result);
+        verify(providerSpy, times(1)).listResources();
+        verify(providerSpy, times(8)).listResources(any());
+    }
+
     private Response createResponse(final String body) {
         return new Response.Builder()
                 .request(REQUEST)
@@ -207,6 +247,11 @@ public class HttpsExternalResourceProviderTest extends AbstractHttpsExternalReso
         properties.put("filter", filter);
         properties.put("user.name", "user");
         properties.put("password", "password");
+        properties.put("file.list.identifier", "//tr[count(td)>2]");
+        properties.put("location.identifier", "./td[1]/a/text()");
+        properties.put("last.modification.identifier", "./td[2]/text()");
+        properties.put("directory.identifier", "./td[1]/a[contains(text(), '/')]");
+        properties.put("date.time.format", "yyy-MM-dd HH:mm");
         if (!narLocation.isEmpty()) {
             properties.put("nar.location", narLocation);
         }
@@ -230,14 +275,14 @@ public class HttpsExternalResourceProviderTest extends AbstractHttpsExternalReso
 
     private Collection<ExternalResourceDescriptor> createExpectedDescriptors(final boolean withVersions, final String narLocation) {
         final Collection<ExternalResourceDescriptor> expected = new ArrayList<>();
-        String url = normalizeURL(String.format("%s%s/", URL, narLocation));
+        String url = narLocation;
 
         for (final String version : EXPECTED_VERSIONS) {
             final String narName = String.format(NAR_NAME_FORMAT, version);
             if (withVersions) {
-                url = normalizeURL(String.format("%s%s/%s/", URL, version, narLocation));
+                url = normalizeURL(String.format("%s/%s/", version, narLocation));
             }
-            final ExternalResourceDescriptor descriptor = new ImmutableExternalResourceDescriptor(narName, LAST_MODIFIED_AS_LONG, url, false);
+            final ExternalResourceDescriptor descriptor = new ImmutableExternalResourceDescriptor(url + narName, LAST_MODIFIED_AS_LONG);
             expected.add(descriptor);
         }
 
@@ -310,6 +355,19 @@ public class HttpsExternalResourceProviderTest extends AbstractHttpsExternalReso
                 .tableHeaderEntry()
                 .parentEntry()
                 .directoryEntry(NAR_LOCATION)
+                .tableEnd()
+                .htmlEnd()
+                .build();
+    }
+
+    private static String createHtmlForMixedEntryForResource(final String fileName) {
+        return HtmlBuilder.newInstance()
+                .htmlStart()
+                .tableStart()
+                .tableHeaderEntry()
+                .parentEntry()
+                .directoryEntry(NAR_LOCATION)
+                .fileEntry(fileName, LAST_MODIFIED, SIZE)
                 .tableEnd()
                 .htmlEnd()
                 .build();

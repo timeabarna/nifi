@@ -430,11 +430,6 @@ public class CollisionAwareResourceProviderWorkerTest {
             }
         }
 
-        @Override
-        public Collection<ExternalResourceDescriptor> listResources(ExternalResourceDescriptor descriptor) throws IOException {
-            return Collections.emptyList();
-        }
-
         public int getListCounter() {
             return listCounter.get();
         }

@@ -21,8 +21,6 @@ import java.util.Objects;
 public class ImmutableExternalResourceDescriptor implements ExternalResourceDescriptor {
     private final String location;
     private final long modifiedAt;
-    private final String path;
-    private boolean directory = false;
 
     public ImmutableExternalResourceDescriptor(final String location, final long modifiedAt) {
         if (modifiedAt < 0) {
@@ -31,18 +29,6 @@ public class ImmutableExternalResourceDescriptor implements ExternalResourceDesc
 
         this.location = Objects.requireNonNull(location);
         this.modifiedAt = modifiedAt;
-        this.path = null;
-    }
-
-    public ImmutableExternalResourceDescriptor(final String location, final long modifiedAt, final String path, final boolean isDirectory) {
-        if (modifiedAt < 0) {
-            throw new IllegalArgumentException("The modification time cannot be negative");
-        }
-
-        this.location = Objects.requireNonNull(location);
-        this.modifiedAt = modifiedAt;
-        this.path = Objects.requireNonNull(path);
-        this.directory = isDirectory;
     }
 
     @Override
@@ -53,15 +39,5 @@ public class ImmutableExternalResourceDescriptor implements ExternalResourceDesc
     @Override
     public long getLastModified() {
         return modifiedAt;
-    }
-
-    @Override
-    public String getPath() {
-        return path;
-    }
-
-    @Override
-    public boolean isDirectory() {
-        return directory;
     }
 }

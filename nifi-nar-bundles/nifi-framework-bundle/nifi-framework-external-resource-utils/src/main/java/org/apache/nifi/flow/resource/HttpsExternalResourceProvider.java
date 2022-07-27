@@ -21,6 +21,7 @@ import okhttp3.Credentials;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.nifi.util.FormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +33,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +55,11 @@ public class HttpsExternalResourceProvider implements ExternalResourceProvider {
     private static final String BASE_URL = "base.url";
     private static final String FILTER = "filter";
     private static final String NAR_LOCATION = "nar.location";
+    private static final String FILE_LIST_IDENTIFIER = "file.list.identifier";
+    private static final String LOCATION_IDENTIFIER = "location.identifier";
+    private static final String LAST_MODIFICATION_IDENTIFIER = "last.modification.identifier";
+    private static final String DIRECTORY_IDENTIFIER = "directory.identifier";
+    private static final String DATE_TIME_FORMAT = "date.time.format";
 
     private static final long DEFAULT_CONNECTION_TIMEOUT = 15;
     private static final long DEFAULT_READ_TIMEOUT = 60;
@@ -62,6 +70,7 @@ public class HttpsExternalResourceProvider implements ExternalResourceProvider {
     private volatile ExternalResourceProviderInitializationContext context;
     private volatile boolean initialized = false;
     private volatile String narLocation;
+    private volatile ExternalResourceParserConfiguration parserConfiguration;
 
     @Override
     public void initialize(ExternalResourceProviderInitializationContext context) {
@@ -69,6 +78,11 @@ public class HttpsExternalResourceProvider implements ExternalResourceProvider {
         final String baseUrl = properties.get(BASE_URL);
         final String narLocation = properties.get(NAR_LOCATION);
         final String filter = properties.get(FILTER);
+        final String fileListIdentifier = properties.get(FILE_LIST_IDENTIFIER);
+        final String locationIdentifier = properties.get(LOCATION_IDENTIFIER);
+        final String lastModificationIdentifier = properties.get(LAST_MODIFICATION_IDENTIFIER);
+        final String directoryIdentifier = properties.get(DIRECTORY_IDENTIFIER);
+        final String dateTimeFormat = properties.get(DATE_TIME_FORMAT);
 
         if (baseUrl == null) {
             throw new IllegalArgumentException("Base URL is required.");
@@ -92,6 +106,16 @@ public class HttpsExternalResourceProvider implements ExternalResourceProvider {
             this.narLocation = narLocation + "/";
         }
 
+        if (ObjectUtils.anyNull(fileListIdentifier, locationIdentifier, lastModificationIdentifier,
+                directoryIdentifier, dateTimeFormat)) {
+            throw new IllegalArgumentException("Date time format and all identifiers are required.");
+        }
+
+        this.parserConfiguration = new ExternalResourceParserConfiguration(fileListIdentifier,
+                locationIdentifier,
+                lastModificationIdentifier,
+                directoryIdentifier,
+                dateTimeFormat);
         this.client = createHttpClient(properties);
         this.context = context;
         this.initialized = true;
@@ -103,49 +127,66 @@ public class HttpsExternalResourceProvider implements ExternalResourceProvider {
             throw new IllegalStateException("Provider is not initialized.");
         }
 
-        final Collection<ExternalResourceDescriptor> result;
+        final ExternalResourceXmlParser parser;
+        Collection<ExternalResourceParserResult> availableResources;
+        Collection<String> visitedLocations = new HashSet<>();
+        Collection<ExternalResourceParserResult> conflicts = new ArrayList<>();
+        Collection<ExternalResourceDescriptor> results = new ArrayList<>();
 
         try {
-            final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
-            result = collectResources(parser, this.baseUrl);
-
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("The following NARs were found: " + result.stream().map(ExternalResourceDescriptor::getLocation).collect(Collectors.joining(", ")));
+            parser = new ExternalResourceXmlParser(parserConfiguration);
+            availableResources = collectResources(parser, normalizeURL(baseUrl));
+            while (!availableResources.isEmpty()) {
+                final Collection<ExternalResourceParserResult> resourcesToCheck = new ArrayList<>();
+                for (final ExternalResourceParserResult availableResource : availableResources) {
+                    if (availableResource.isDirectory()) {
+                        resourcesToCheck.addAll(listResources(availableResource));
+                    } else if (visitedLocations.add(availableResource.getLocation())){
+                        results.add(createDescriptor(availableResource));
+                    } else {
+                        conflicts.add(availableResource);
+                        results.removeIf(visitedResource -> visitedResource.getLocation().endsWith(availableResource.getLocation()));
+                    }
+                }
+                availableResources = resourcesToCheck;
             }
 
-        } catch (Exception e){
+        } catch (Exception e) {
             throw new IOException("Provider cannot list resources", e);
         }
 
-        return result;
+        if (!conflicts.isEmpty()) {
+            LOGGER.error("NARs " + conflicts.stream().map(ExternalResourceParserResult::getLocation).collect(Collectors.joining(", ")) + "won't be included, as multiple NARs with the same name were found.");
+        }
+
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("The following NARs were found: " + results.stream().map(ExternalResourceDescriptor::getLocation).collect(Collectors.joining(", ")));
+        }
+
+        return results;
     }
 
-    @Override
+        @Override
     public InputStream fetchExternalResource(ExternalResourceDescriptor descriptor) throws IOException {
         if (!initialized) {
             throw new IllegalStateException("Provider is not initialized");
         }
 
-        final Response httpResponse = sendRequest(descriptor.getPath() + descriptor.getLocation());
+        final Response httpResponse = sendRequest(this.baseUrl + descriptor.getLocation());
 
         return httpResponse.body().byteStream();
     }
 
-    @Override
-    public Collection<ExternalResourceDescriptor> listResources(ExternalResourceDescriptor descriptor) throws IOException {
+    public Collection<ExternalResourceParserResult> listResources(ExternalResourceParserResult descriptor) throws IOException {
         if (!initialized) {
             throw new IllegalStateException("Provider is not initialized.");
         }
 
-        final Collection<ExternalResourceDescriptor> result;
+        final Collection<ExternalResourceParserResult> result;
 
         try {
-            final ExternalResourceListAsHtmlParser parser = new ExternalResourceListAsHtmlParser();
+            final ExternalResourceXmlParser parser = new ExternalResourceXmlParser(parserConfiguration);
             result = collectResources(parser, createNarLocationUrl(descriptor));
-
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("The following NARs were found: " + result.stream().map(ExternalResourceDescriptor::getLocation).collect(Collectors.joining(", ")));
-            }
 
         } catch (Exception e){
             throw new IOException("Provider cannot list resources", e);
@@ -222,18 +263,22 @@ public class HttpsExternalResourceProvider implements ExternalResourceProvider {
         return url.replaceAll("(?<!http:|https:)/+/", "/");
     }
 
-    private String createNarLocationUrl(final ExternalResourceDescriptor descriptor) {
-        return normalizeURL(descriptor.getPath() + descriptor.getLocation() + this.narLocation);
+    private String createNarLocationUrl(final ExternalResourceParserResult descriptor) {
+        return normalizeURL(this.baseUrl + descriptor.getPath() + "/" + descriptor.getLocation() + "/" + this.narLocation);
     }
 
-    private Collection<ExternalResourceDescriptor> collectResources(final ExternalResourceListAsHtmlParser parser, final String url)
+    private Collection<ExternalResourceParserResult> collectResources(final ExternalResourceXmlParser parser, final String url)
             throws IOException, ParserConfigurationException, XPathExpressionException, SAXException {
         final String response = sendRequest(url).body().string();
 
-        final Collection<ExternalResourceDescriptor> descriptors = parser.parseResponse(response, url);
+        final Collection<ExternalResourceParserResult> descriptors = parser.parseResponse(response, url.replace(this.baseUrl, ""));
 
         return descriptors.stream()
                 .filter(descriptor -> descriptor.getLocation().matches(this.filter))
                 .collect(Collectors.toList());
+    }
+
+    private ImmutableExternalResourceDescriptor createDescriptor(final ExternalResourceParserResult parserResult) {
+        return new ImmutableExternalResourceDescriptor(parserResult.getPath() + parserResult.getLocation(), parserResult.getLastModified());
     }
 }

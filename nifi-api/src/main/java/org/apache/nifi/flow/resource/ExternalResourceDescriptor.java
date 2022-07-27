@@ -30,14 +30,4 @@ public interface ExternalResourceDescriptor {
      * @return Returns the modification time of the original resource file using Unix timestamp format.
      */
     long getLastModified();
-
-    /**
-     * @return The path of the resource, where the format depends on the actual provider implementation.
-     */
-    String getPath();
-
-    /**
-     * @return Returns whether the resource is a directory.
-     */
-    boolean isDirectory();
 }
