@@ -52,10 +52,12 @@ public class TestNeo4JCypherClientService {
         node3.put("state", "FL");
         nodeList.add(node3);
 
-        final List<String> expectedQueryList = Arrays.asList("MERGE (p:NiFiProvenanceEvent {name: \"Matt\"})",
-                "MERGE (p:NiFiProvenanceEvent {color: \"blue\",name: \"Joe\",age: \"40\"})",
-                "MERGE (p:NiFiProvenanceEvent {name: \"Mary\",state: \"FL\",age: \"40\"})");
-        final List<String> queryList = clientService.buildQueryFromNodes(nodeList, new HashMap<>());
+        final List<GraphQuery> expectedQueryList = Arrays.asList(
+                new GraphQuery("MERGE (p:NiFiProvenanceEvent {name: \"Matt\"})", GraphClientService.CYPHER),
+                new GraphQuery("MERGE (p:NiFiProvenanceEvent {color: \"blue\",name: \"Joe\",age: \"40\"})", GraphClientService.CYPHER),
+                new GraphQuery("MERGE (p:NiFiProvenanceEvent {name: \"Mary\",state: \"FL\",age: \"40\"})", GraphClientService.CYPHER)
+        );
+        final List<GraphQuery> queryList = clientService.buildQueryFromNodes(nodeList, new HashMap<>());
         assertEquals(expectedQueryList, queryList);
     }
 }

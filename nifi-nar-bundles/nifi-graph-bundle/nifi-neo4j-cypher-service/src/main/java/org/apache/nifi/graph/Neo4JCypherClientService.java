@@ -299,9 +299,9 @@ public class Neo4JCypherClientService extends AbstractControllerService implemen
     }
 
     @Override
-    public List<String> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
+    public List<GraphQuery> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
         // Build queries from event list
-        List<String> queryList = new ArrayList<>(eventList.size());
+        List<GraphQuery> queryList = new ArrayList<>(eventList.size());
         for (Map<String,Object> eventNode : eventList) {
             StringBuilder queryBuilder = new StringBuilder();
             queryBuilder.append("MERGE (p:NiFiProvenanceEvent {");
@@ -311,7 +311,7 @@ public class Neo4JCypherClientService extends AbstractControllerService implemen
             }
             queryBuilder.append(String.join(",", propertyDefinitions));
             queryBuilder.append("})");
-            queryList.add(queryBuilder.toString());
+            queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.CYPHER));
         }
         return queryList;
     }

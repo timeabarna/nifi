@@ -198,14 +198,16 @@ public class ITNeo4JCypherClientServiceSSL {
         node3.put("state", "FL");
         nodeList.add(node3);
 
-        final List<String> expectedQuery = Arrays.asList("MERGE (p:NiFiProvenanceEvent {name: \"Matt\"})",
-                "MERGE (p:NiFiProvenanceEvent {color: \"blue\",name: \"Joe\",age: \"40\"})",
-                "MERGE (p:NiFiProvenanceEvent {name: \"Mary\",state: \"FL\",age: \"40\"})");
-        final List<String> queryList = clientService.buildQueryFromNodes(nodeList, new HashMap<>());
+        final List<GraphQuery> expectedQuery = Arrays.asList(
+                new GraphQuery("MERGE (p:NiFiProvenanceEvent {name: \"Matt\"})", GraphClientService.CYPHER),
+                new GraphQuery("MERGE (p:NiFiProvenanceEvent {color: \"blue\",name: \"Joe\",age: \"40\"})", GraphClientService.CYPHER),
+                new GraphQuery("MERGE (p:NiFiProvenanceEvent {name: \"Mary\",state: \"FL\",age: \"40\"})", GraphClientService.CYPHER)
+        );
+        final List<GraphQuery> queryList = clientService.buildQueryFromNodes(nodeList, new HashMap<>());
         assertEquals(expectedQuery, queryList);
         final List<Map<String, Object>> result = new ArrayList<>();
-        for (String query : queryList) {
-            Map<String, String> attributes = clientService.executeQuery(query, new HashMap<>(), (record, hasMore) -> result.add(record));
+        for (GraphQuery query : queryList) {
+            Map<String, String> attributes = clientService.executeQuery(query.getQuery(), new HashMap<>(), (record, hasMore) -> result.add(record));
             assertEquals("0", attributes.get(GraphClientService.LABELS_ADDED));
             assertEquals("1", attributes.get(GraphClientService.NODES_CREATED));
             assertEquals("0", attributes.get(GraphClientService.NODES_DELETED));

@@ -27,14 +27,15 @@ import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Result;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+
 @CapabilityDescription("A client service that connects to a graph database that can accept queries in the Tinkerpop Gremlin DSL.")
-@Tags({ "graph", "database", "gremlin", "tinkerpop", })
+@Tags({"graph", "database", "gremlin", "tinkerpop",})
 public class GremlinClientService extends AbstractTinkerpopClientService implements TinkerPopClientService {
     private Cluster cluster;
     protected Client client;
@@ -64,9 +65,9 @@ public class GremlinClientService extends AbstractTinkerpopClientService impleme
                 Result result = iterator.next();
                 Object obj = result.getObject();
                 if (obj instanceof Map) {
-                    handler.process((Map)obj, iterator.hasNext());
+                    handler.process((Map) obj, iterator.hasNext());
                 } else {
-                    handler.process(new HashMap<String, Object>(){{
+                    handler.process(new HashMap<String, Object>() {{
                         put("result", obj);
                     }}, iterator.hasNext());
                 }
@@ -108,10 +109,27 @@ public class GremlinClientService extends AbstractTinkerpopClientService impleme
     }
 
     @Override
-    public List<String> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
+    public List<GraphQuery> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
         // Build query from event list
-        StringBuilder queryBuilder = new StringBuilder();
+        // Build queries from event list
+        List<GraphQuery> queryList = new ArrayList<>(eventList.size());
+        for (Map<String, Object> eventNode : eventList) {
+            StringBuilder queryBuilder = new StringBuilder();
+            queryBuilder.append("g.V()has(\"NiFiProvenanceEvent\", \"");
+            queryBuilder.append("eventId\", \"");
+            queryBuilder.append(eventNode.get("eventId"));
+            queryBuilder.append("\").fold().coalesce(unfold(), addV(\"NiFiProvenanceEvent\")");
 
-        return Collections.emptyList(); // TODO
+            for (Map.Entry<String, Object> properties : eventNode.entrySet()) {
+                queryBuilder.append(".property(\"");
+                queryBuilder.append(properties.getKey());
+                queryBuilder.append("\", \"");
+                queryBuilder.append(properties.getValue());
+                queryBuilder.append("\")");
+            }
+            queryBuilder.append(")");
+            queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.GREMLIN));
+        }
+        return queryList;
     }
 }

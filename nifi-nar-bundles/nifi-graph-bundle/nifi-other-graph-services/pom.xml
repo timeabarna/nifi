@@ -115,6 +115,11 @@
             <artifactId>gremlin-driver</artifactId>
             <version>${gremlin.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.nifi</groupId>
+            <artifactId>nifi-web-client-provider-api</artifactId>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
     <build>

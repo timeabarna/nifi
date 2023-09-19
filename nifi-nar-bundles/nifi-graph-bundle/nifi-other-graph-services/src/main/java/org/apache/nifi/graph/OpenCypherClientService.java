@@ -102,9 +102,9 @@ public class OpenCypherClientService extends AbstractTinkerpopClientService impl
     }
 
     @Override
-    public List<String> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
+    public List<GraphQuery> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
         // Build queries from event list
-        List<String> queryList = new ArrayList<>(eventList.size());
+        List<GraphQuery> queryList = new ArrayList<>(eventList.size());
         StringBuilder queryBuilder = new StringBuilder();
         for (Map<String,Object> eventNode : eventList) {
             queryBuilder.append("MERGE (p:NiFiProvenanceEvent {");
@@ -114,7 +114,7 @@ public class OpenCypherClientService extends AbstractTinkerpopClientService impl
             }
             queryBuilder.append(String.join(",", propertyDefinitions));
             queryBuilder.append("})");
-            queryList.add(queryBuilder.toString());
+            queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.CYPHER));
         }
         return queryList;
     }
