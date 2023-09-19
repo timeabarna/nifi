@@ -21,7 +21,9 @@ import org.apache.nifi.controller.AbstractControllerService;
 import org.apache.nifi.graph.GraphClientService;
 import org.apache.nifi.graph.GraphQueryResultCallback;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MockCypherClientService extends AbstractControllerService implements GraphClientService {
@@ -52,5 +54,23 @@ public class MockCypherClientService extends AbstractControllerService implement
     @Override
     public String getTransitUrl() {
         return "mock://localhost:12345/fake_database";
+    }
+
+    @Override
+    public List<String> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
+        // Build queries from event list
+        List<String> queryList = new ArrayList<>(eventList.size());
+        StringBuilder queryBuilder = new StringBuilder();
+        for (Map<String,Object> eventNode : eventList) {
+            queryBuilder.append("MERGE (p:NiFiProvenanceEvent {");
+            List<String> propertyDefinitions = new ArrayList<>(eventNode.entrySet().size());
+            for (Map.Entry<String,Object> properties : eventNode.entrySet()) {
+                propertyDefinitions.add(properties.getKey() + ": \"" + properties.getValue() + "\"");
+            }
+            queryBuilder.append(String.join(",", propertyDefinitions));
+            queryBuilder.append("})");
+            queryList.add(queryBuilder.toString());
+        }
+        return queryList;
     }
 }

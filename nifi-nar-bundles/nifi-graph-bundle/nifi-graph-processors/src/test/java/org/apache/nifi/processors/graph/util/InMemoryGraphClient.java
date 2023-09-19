@@ -30,8 +30,10 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.util.AbstractMap.SimpleEntry;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public class InMemoryGraphClient extends AbstractControllerService implements GraphClientService {
@@ -121,5 +123,13 @@ public class InMemoryGraphClient extends AbstractControllerService implements Gr
     @Override
     public String getTransitUrl() {
         return "memory://localhost/graph";
+    }
+
+    @Override
+    public List<String> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
+        // Build query from event list
+        StringBuilder queryBuilder = new StringBuilder();
+
+        return Collections.emptyList(); // TODO
     }
 }

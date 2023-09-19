@@ -31,7 +31,9 @@ import org.neo4j.driver.v1.Session;
 import org.neo4j.driver.v1.StatementResult;
 import org.opencypher.gremlin.neo4j.driver.GremlinDatabase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @CapabilityDescription("A client service that uses the OpenCypher implementation of the Cypher query language to connect to " +
@@ -97,5 +99,23 @@ public class OpenCypherClientService extends AbstractTinkerpopClientService impl
     @Override
     public String getTransitUrl() {
         return transitUrl;
+    }
+
+    @Override
+    public List<String> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
+        // Build queries from event list
+        List<String> queryList = new ArrayList<>(eventList.size());
+        StringBuilder queryBuilder = new StringBuilder();
+        for (Map<String,Object> eventNode : eventList) {
+            queryBuilder.append("MERGE (p:NiFiProvenanceEvent {");
+            List<String> propertyDefinitions = new ArrayList<>(eventNode.entrySet().size());
+            for (Map.Entry<String,Object> properties : eventNode.entrySet()) {
+                propertyDefinitions.add(properties.getKey() + ": \"" + properties.getValue() + "\"");
+            }
+            queryBuilder.append(String.join(",", propertyDefinitions));
+            queryBuilder.append("})");
+            queryList.add(queryBuilder.toString());
+        }
+        return queryList;
     }
 }
