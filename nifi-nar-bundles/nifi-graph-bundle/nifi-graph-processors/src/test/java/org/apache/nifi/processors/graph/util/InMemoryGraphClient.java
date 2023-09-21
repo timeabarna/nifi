@@ -22,6 +22,7 @@ import org.apache.nifi.controller.ConfigurationContext;
 import org.apache.nifi.graph.GraphClientService;
 import org.apache.nifi.graph.GraphQuery;
 import org.apache.nifi.graph.GraphQueryResultCallback;
+import org.apache.nifi.graph.GremlinQueryFromNodesBuilder;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.janusgraph.core.JanusGraph;
@@ -31,7 +32,6 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.util.AbstractMap.SimpleEntry;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -129,25 +129,6 @@ public class InMemoryGraphClient extends AbstractControllerService implements Gr
     @Override
     public List<GraphQuery> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
         // Build query from event list
-        // Build queries from event list
-        List<GraphQuery> queryList = new ArrayList<>(eventList.size());
-        for (Map<String, Object> eventNode : eventList) {
-            StringBuilder queryBuilder = new StringBuilder();
-            queryBuilder.append("g.V()has(\"NiFiProvenanceEvent\", \"");
-            queryBuilder.append("eventId\", \"");
-            queryBuilder.append(eventNode.get("eventId"));
-            queryBuilder.append("\").fold().coalesce(unfold(), addV(\"NiFiProvenanceEvent\")");
-
-            for (Map.Entry<String, Object> properties : eventNode.entrySet()) {
-                queryBuilder.append(".property(\"");
-                queryBuilder.append(properties.getKey());
-                queryBuilder.append("\", \"");
-                queryBuilder.append(properties.getValue());
-                queryBuilder.append("\")");
-            }
-            queryBuilder.append(")");
-            queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.GREMLIN));
-        }
-        return queryList;
+        return new GremlinQueryFromNodesBuilder().getQueries(eventList);
     }
 }

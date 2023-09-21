@@ -18,11 +18,11 @@
 package org.apache.nifi.processors.graph;
 
 import org.apache.nifi.controller.AbstractControllerService;
+import org.apache.nifi.graph.CypherQueryFromNodesBuilder;
 import org.apache.nifi.graph.GraphClientService;
 import org.apache.nifi.graph.GraphQuery;
 import org.apache.nifi.graph.GraphQueryResultCallback;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,18 +60,6 @@ public class MockCypherClientService extends AbstractControllerService implement
     @Override
     public List<GraphQuery> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
         // Build queries from event list
-        List<GraphQuery> queryList = new ArrayList<>(eventList.size());
-        for (Map<String,Object> eventNode : eventList) {
-            StringBuilder queryBuilder = new StringBuilder();
-            queryBuilder.append("MERGE (p:NiFiProvenanceEvent {");
-            List<String> propertyDefinitions = new ArrayList<>(eventNode.entrySet().size());
-            for (Map.Entry<String,Object> properties : eventNode.entrySet()) {
-                propertyDefinitions.add(properties.getKey() + ": \"" + properties.getValue() + "\"");
-            }
-            queryBuilder.append(String.join(",", propertyDefinitions));
-            queryBuilder.append("})");
-            queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.CYPHER));
-        }
-        return queryList;
+        return new CypherQueryFromNodesBuilder().getQueries(eventList);
     }
 }

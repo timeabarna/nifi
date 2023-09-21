@@ -19,11 +19,14 @@ package org.apache.nifi.graph;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.nifi.annotation.documentation.CapabilityDescription;
+import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnEnabled;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.controller.AbstractControllerService;
 import org.apache.nifi.controller.ConfigurationContext;
 import org.apache.nifi.expression.ExpressionLanguageScope;
+import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.web.client.api.HttpResponseEntity;
 import org.apache.nifi.web.client.provider.api.WebClientServiceProvider;
@@ -33,15 +36,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.regex.Pattern;
 
+@CapabilityDescription("A client service that connects to ArcadeDB database.")
+@Tags({"graph", "database", "arcadedb",})
 public class ArcadeDBClientService extends AbstractControllerService implements GraphClientService {
 
     public static final PropertyDescriptor API_URL = new PropertyDescriptor.Builder()
@@ -92,7 +97,7 @@ public class ArcadeDBClientService extends AbstractControllerService implements 
             .description("Query language to use with ArcadeDB.")
             .required(true)
             .defaultValue("gremlin")
-            .allowableValues("sql", "sqlscript", "graphql", "cypher", "gremlin", "mongo")
+            .allowableValues("sql", "cypher", "gremlin")
             .build();
 
     private static final String NOT_SUPPORTED = "NOT_SUPPORTED";
@@ -166,7 +171,7 @@ public class ArcadeDBClientService extends AbstractControllerService implements 
 
             return resultAttributes;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to process request " + body.getCommand(), e);
+            throw new ProcessException("Failed to process request " + body.getCommand(), e);
         }
     }
 
@@ -184,7 +189,7 @@ public class ArcadeDBClientService extends AbstractControllerService implements 
                     .retrieve();
 
         } catch (IOException e) {
-            throw new RuntimeException("Failed to execute query " + body.getCommand(), e);
+            throw new ProcessException("Failed to execute query " + body.getCommand(), e);
         }
     }
 
@@ -192,7 +197,7 @@ public class ArcadeDBClientService extends AbstractControllerService implements 
         try {
             return new URI(apiUrl + "/command/" + databaseName);
         } catch (URISyntaxException e) {
-            throw new RuntimeException("Invalid url", e);
+            throw new ProcessException("Invalid url", e);
         }
     }
 
@@ -202,52 +207,16 @@ public class ArcadeDBClientService extends AbstractControllerService implements 
     }
 
     @Override
-    public List<GraphQuery> buildQueryFromNodes(List<Map<String, Object>> nodeList, Map<String, Object> parameters) {
+    public List<GraphQuery> buildQueryFromNodes(final List<Map<String, Object>> nodeList, final Map<String, Object> parameters) {
         // Build queries from event list
-        List<GraphQuery> queryList = new ArrayList<>(nodeList.size());
-        for (Map<String, Object> eventNode : nodeList) {
-            StringBuilder queryBuilder = new StringBuilder();
             if (GraphClientService.GREMLIN.equals(language)) {
-                queryBuilder.append("g.V()has(\"NiFiProvenanceEvent\", \"");
-                queryBuilder.append("eventId\", \"");
-                queryBuilder.append(eventNode.get("eventId"));
-                queryBuilder.append("\").fold().coalesce(unfold(), addV(\"NiFiProvenanceEvent\")");
-
-                for (Map.Entry<String, Object> properties : eventNode.entrySet()) {
-                    queryBuilder.append(".property(\"");
-                    queryBuilder.append(properties.getKey());
-                    queryBuilder.append("\", \"");
-                    queryBuilder.append(properties.getValue());
-                    queryBuilder.append("\")");
-                }
-                queryBuilder.append(")");
-
+                return new GremlinQueryFromNodesBuilder().getQueries(nodeList);
             } else if (GraphClientService.SQL.equals(language)) {
-                queryBuilder.append("UPDATE NiFiProvenanceEvent SET ");
-                final String eventIdClause = "eventId = '" + eventNode.get("eventId") + "'";
-                queryBuilder.append(eventIdClause);
-
-                for (Map.Entry<String, Object> properties : eventNode.entrySet()) {
-                    queryBuilder.append(", ");
-                    queryBuilder.append(properties.getKey());
-                    queryBuilder.append("= '");
-                    queryBuilder.append(properties.getValue());
-                    queryBuilder.append("'");
-                }
-                queryBuilder.append(" UPSERT WHERE ");
-                queryBuilder.append(eventIdClause);
+                return new SqlQueryFromNodesBuilder().getQueries(nodeList);
             } else if (GraphClientService.CYPHER.equals(language)) {
-                queryBuilder.append("MERGE (p:NiFiProvenanceEvent {");
-                List<String> propertyDefinitions = new ArrayList<>(eventNode.entrySet().size());
-                for (Map.Entry<String,Object> properties : eventNode.entrySet()) {
-                    propertyDefinitions.add(properties.getKey() + ": \"" + properties.getValue() + "\"");
-                }
-                queryBuilder.append(String.join(",", propertyDefinitions));
-                queryBuilder.append("})");
+                return new CypherQueryFromNodesBuilder().getQueries(nodeList);
             }
-            queryList.add(new GraphQuery(queryBuilder.toString(), language));
-        }
-        return queryList;
+            return Collections.emptyList();
     }
 
     private static class ArcadeDbRequestBody {

@@ -27,7 +27,6 @@ import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Result;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -111,25 +110,6 @@ public class GremlinClientService extends AbstractTinkerpopClientService impleme
     @Override
     public List<GraphQuery> buildQueryFromNodes(List<Map<String, Object>> eventList, Map<String, Object> parameters) {
         // Build query from event list
-        // Build queries from event list
-        List<GraphQuery> queryList = new ArrayList<>(eventList.size());
-        for (Map<String, Object> eventNode : eventList) {
-            StringBuilder queryBuilder = new StringBuilder();
-            queryBuilder.append("g.V()has(\"NiFiProvenanceEvent\", \"");
-            queryBuilder.append("eventId\", \"");
-            queryBuilder.append(eventNode.get("eventId"));
-            queryBuilder.append("\").fold().coalesce(unfold(), addV(\"NiFiProvenanceEvent\")");
-
-            for (Map.Entry<String, Object> properties : eventNode.entrySet()) {
-                queryBuilder.append(".property(\"");
-                queryBuilder.append(properties.getKey());
-                queryBuilder.append("\", \"");
-                queryBuilder.append(properties.getValue());
-                queryBuilder.append("\")");
-            }
-            queryBuilder.append(")");
-            queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.GREMLIN));
-        }
-        return queryList;
+        return new GremlinQueryFromNodesBuilder().getQueries(eventList);
     }
 }
