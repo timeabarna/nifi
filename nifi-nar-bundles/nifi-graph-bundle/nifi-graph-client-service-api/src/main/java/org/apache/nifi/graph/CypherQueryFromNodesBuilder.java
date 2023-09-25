@@ -24,7 +24,7 @@ public class CypherQueryFromNodesBuilder {
     public List<GraphQuery> getQueries(final List<Map<String, Object>> nodeList) {
         final List<GraphQuery> queryList = new ArrayList<>(nodeList.size());
         for (Map<String, Object> eventNode : nodeList) {
-            final StringBuilder queryBuilder = new StringBuilder();
+            StringBuilder queryBuilder = new StringBuilder();
             queryBuilder.append("MERGE (p:NiFiProvenanceEvent {");
             final List<String> propertyDefinitions = new ArrayList<>(eventNode.entrySet().size());
 
@@ -35,6 +35,23 @@ public class CypherQueryFromNodesBuilder {
             queryBuilder.append(String.join(",", propertyDefinitions));
             queryBuilder.append("})");
             queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.CYPHER));
+
+            List<Long> previousEventIds = (List<Long>) eventNode.get("previousEventIds");
+
+            // If there are previous event IDs, add edges
+            if (previousEventIds != null) {
+                queryBuilder = new StringBuilder();
+                // Match the source (previous event) and target (this event) and create the edge if it doesn't exist
+                for (Long previousEventId : previousEventIds) {
+                    queryBuilder.append("MATCH\n(x:NiFiProvenanceEvent {eventOrdinal: '");
+                    queryBuilder.append(previousEventId);
+                    queryBuilder.append("'}),\n(y:NiFiProvenanceEvent {eventOrdinal: '");
+                    queryBuilder.append(eventNode.get("eventOrdinal"));
+                    queryBuilder.append("'})\nMERGE(x) -[:next]-> (y)");
+                    // Add edge to graph
+                    queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.CYPHER));
+                }
+            }
         }
         return queryList;
     }

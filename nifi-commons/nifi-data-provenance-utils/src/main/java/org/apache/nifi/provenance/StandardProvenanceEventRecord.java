@@ -67,6 +67,7 @@ public class StandardProvenanceEventRecord implements ProvenanceEventRecord {
     private final Map<String, String> updatedAttributes;
 
     private volatile long eventId = -1L;
+    private volatile List<Long> previousEventIds;
 
     StandardProvenanceEventRecord(final Builder builder) {
         this.eventTime = builder.eventTime;
@@ -107,6 +108,7 @@ public class StandardProvenanceEventRecord implements ProvenanceEventRecord {
         if (builder.eventId != null) {
             eventId = builder.eventId;
         }
+        previousEventIds = builder.previousEventIds;
     }
 
     public static StandardProvenanceEventRecord copy(StandardProvenanceEventRecord other) {
@@ -129,6 +131,16 @@ public class StandardProvenanceEventRecord implements ProvenanceEventRecord {
     @Override
     public long getEventId() {
         return eventId;
+    }
+
+    @Override
+    public List<Long> getPreviousEventIds() {
+        return previousEventIds;
+    }
+
+    @Override
+    public void setPreviousEventIds(List<Long> previousEventIds) {
+        this.previousEventIds = previousEventIds;
     }
 
     @Override
@@ -373,15 +385,15 @@ public class StandardProvenanceEventRecord implements ProvenanceEventRecord {
             return false;
         }
 
-        if (a == null && b != null && !b.isEmpty()) {
+        if (a == null && !b.isEmpty()) {
             return true;
         }
 
-        if (a == null && b.isEmpty()) {
+        if (a == null) {
             return false;
         }
 
-        if (a != null && !a.isEmpty() && b == null) {
+        if (!a.isEmpty() && b == null) {
             return true;
         }
 
@@ -412,11 +424,13 @@ public class StandardProvenanceEventRecord implements ProvenanceEventRecord {
     public String toString() {
         return "ProvenanceEventRecord ["
                 + "eventId=" + eventId
+                + ", previousEventIds=" + previousEventIds
                 + ", eventType=" + eventType
                 + ", eventTime=" + new Date(eventTime)
                 + ", uuid=" + uuid
                 + ", fileSize=" + contentSize
                 + ", componentId=" + componentId
+                + ", componentType" + componentType
                 + ", transitUri=" + transitUri
                 + ", sourceSystemFlowFileIdentifier=" + sourceSystemFlowFileIdentifier
                 + ", parentUuids=" + parentUuids
@@ -460,6 +474,7 @@ public class StandardProvenanceEventRecord implements ProvenanceEventRecord {
         private long eventDuration = -1L;
         private String storageFilename;
         private Long eventId;
+        private List<Long> previousEventIds;
 
         private String contentClaimSection;
         private String contentClaimContainer;
@@ -517,6 +532,8 @@ public class StandardProvenanceEventRecord implements ProvenanceEventRecord {
                 storageByteOffset = standardProvEvent.storageByteOffset;
                 storageFilename = standardProvEvent.storageFilename;
             }
+
+            previousEventIds = event.getPreviousEventIds();
 
             return this;
         }
@@ -742,6 +759,12 @@ public class StandardProvenanceEventRecord implements ProvenanceEventRecord {
         @Override
         public Builder setRelationship(Relationship relationship) {
             this.relationship = relationship.getName();
+            return this;
+        }
+
+        @Override
+        public ProvenanceEventBuilder setPreviousEventIds(List<Long> previousEventIds) {
+            this.previousEventIds = previousEventIds;
             return this;
         }
 

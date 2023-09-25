@@ -25,6 +25,7 @@ import java.util.Map;
 
 public class SimpleProvenanceRecord implements ProvenanceEventRecord {
     private long eventId;
+    private List<Long> previousEventIds;
     private String componentId;
     private String componentType;
     private String transitUri;
@@ -50,6 +51,10 @@ public class SimpleProvenanceRecord implements ProvenanceEventRecord {
 
     public void setEventId(long eventId) {
         this.eventId = eventId;
+    }
+
+    public void setPreviousEventIds(List<Long> previousEventIds) {
+        this.previousEventIds = previousEventIds;
     }
 
     @Override
@@ -80,6 +85,11 @@ public class SimpleProvenanceRecord implements ProvenanceEventRecord {
     @Override
     public long getEventId() {
         return eventId;
+    }
+
+    @Override
+    public List<Long> getPreviousEventIds() {
+        return previousEventIds;
     }
 
     @Override

@@ -209,14 +209,14 @@ public class ArcadeDBClientService extends AbstractControllerService implements 
     @Override
     public List<GraphQuery> buildQueryFromNodes(final List<Map<String, Object>> nodeList, final Map<String, Object> parameters) {
         // Build queries from event list
-            if (GraphClientService.GREMLIN.equals(language)) {
-                return new GremlinQueryFromNodesBuilder().getQueries(nodeList);
-            } else if (GraphClientService.SQL.equals(language)) {
-                return new SqlQueryFromNodesBuilder().getQueries(nodeList);
-            } else if (GraphClientService.CYPHER.equals(language)) {
-                return new CypherQueryFromNodesBuilder().getQueries(nodeList);
-            }
-            return Collections.emptyList();
+        if (GraphClientService.GREMLIN.equals(language)) {
+            return new GremlinQueryFromNodesBuilder().getQueries(nodeList);
+        } else if (GraphClientService.SQL.equals(language)) {
+            return new SqlQueryFromNodesBuilder().getQueries(nodeList);
+        } else if (GraphClientService.CYPHER.equals(language)) {
+            return new CypherQueryFromNodesBuilder().getQueries(nodeList);
+        }
+        return Collections.emptyList();
     }
 
     private static class ArcadeDbRequestBody {
