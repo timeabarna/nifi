@@ -38,19 +38,20 @@ public class GremlinQueryFromNodesBuilder {
                 queryBuilder.append("\")");
             }
             queryBuilder.append(");\n");
+            queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.GREMLIN));
 
             // Add edges
             List<Long> previousEventIds = (List<Long>) eventNode.remove("previousEventIds");
             for (Long previousEventId : previousEventIds) {
+                queryBuilder = new StringBuilder();
                 queryBuilder.append("g.V().has('NiFiProvenanceEvent', ");
                 queryBuilder.append("'eventId', '");
                 queryBuilder.append(eventNode.get("eventId"));
                 queryBuilder.append("'.as('v1').V().has('NiFiProvenanceEvent','eventId','");
-                queryBuilder.append(eventNode.get(previousEventId));
+                queryBuilder.append(previousEventId);
                 queryBuilder.append("'.as('v2').mergeE([(from):outV, (to): inV, label: 'next']).option(outV, select('v1')).option(inV, select('v2'));\n");
+                queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.GREMLIN));
             }
-
-            queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.GREMLIN));
         }
         return queryList;
     }

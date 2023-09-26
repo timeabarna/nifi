@@ -40,6 +40,22 @@ public class SqlQueryFromNodesBuilder {
             queryBuilder.append(" UPSERT WHERE ");
             queryBuilder.append(eventIdClause);
             queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.SQL));
+
+            // If there are previous event IDs, add edges
+            List<Long> previousEventIds = (List<Long>) eventNode.get("previousEventIds");
+            if (previousEventIds != null) {
+                queryBuilder = new StringBuilder();
+                // Match the source (previous event) and target (this event) and create the edge if it doesn't exist
+                for (Long previousEventId : previousEventIds) {
+                    queryBuilder.append("CREATE EDGE IF NOT EXISTS (x:NiFiProvenanceEvent {eventOrdinal: '");
+                    queryBuilder.append(previousEventId);
+                    queryBuilder.append("'}),\n(y:NiFiProvenanceEvent {eventOrdinal: '");
+                    queryBuilder.append(eventNode.get("eventOrdinal"));
+                    queryBuilder.append("'})\nMERGE(x) -[:next]-> (y)");
+                    // Add edge to graph
+                    queryList.add(new GraphQuery(queryBuilder.toString(), GraphClientService.SQL));
+                }
+            }
         }
         return queryList;
     }
