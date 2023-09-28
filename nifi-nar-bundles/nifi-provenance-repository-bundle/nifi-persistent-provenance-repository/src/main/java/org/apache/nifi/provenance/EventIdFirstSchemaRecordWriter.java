@@ -247,8 +247,8 @@ public class EventIdFirstSchemaRecordWriter extends CompressableRecordWriter {
             case FORK:
             case CLONE:
             case REPLAY:
+                event.setPreviousEventIds(previousEventIds);
                 for (final String childUUID : event.getChildUuids()) {
-                    event.setPreviousEventIds(previousEventIds);
                     // Add the child FlowFiles to the previous event ID map with this event's entry in the map
                     previousEventIdsMap.put(childUUID, Collections.singletonList(recordIdentifier));
                 }
